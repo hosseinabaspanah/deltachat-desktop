@@ -192,15 +192,9 @@ function buildContextMenu(
 
   return [
     {
-      label: 'React with 👍 🚀 ❤️ ⭐ 👎',
+      label: 'React with ❤️',
       action: () => {
-        BackendRemote.rpc.sendReaction(selectedAccountId(), message.id, [
-          '👍',
-          '🚀',
-          '❤️',
-          '⭐',
-          '👎',
-        ])
+        BackendRemote.rpc.sendReaction(selectedAccountId(), message.id, ['❤️'])
       },
     },
     {
@@ -534,7 +528,9 @@ export default function Message(props: {
               {tx('show_full_message')}
             </div>
           )}
-          {message.reactions && <Reactions messageId={message.id} reactions={message.reactions} />}
+          {message.reactions && (
+            <Reactions messageId={message.id} reactions={message.reactions} />
+          )}
           <MessageMetaData
             fileMime={(!isSetupmessage && message.fileMime) || null}
             direction={direction}
