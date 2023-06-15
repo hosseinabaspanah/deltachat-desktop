@@ -457,10 +457,7 @@ function translate_n(key: string, quantity: number) {
 }
 
 /** functions for the chat virtual list */
-export function useLogicVirtualChatList(
-  chatListIds: number[],
-  listFlags: number | null
-) {
+export function useLogicVirtualChatList(chatListIds: number[]) {
   const accountId = selectedAccountId()
   // workaround to save a current reference of chatListIds
   const chatListIdsRef = useRef(chatListIds)
@@ -503,137 +500,55 @@ export function useLogicVirtualChatList(
     })
   }
 
-  const onChatListItemChanged = useMemo(() => {
-    let debouncingChatlistItemRequests: { [chatid: number]: number } = {}
-    let cleanup_timeout: any | null = null
-    const updateChatListItem = async (chatId: number) => {
-      if (cleanup_timeout === null) {
-        // clean up debouncingChatlistItemRequests every half minute,
-        // so if there should ever be an error it auto recovers
-        cleanup_timeout = setTimeout(() => {
-          debouncingChatlistItemRequests = {}
-          cleanup_timeout = null
-        }, 30000)
-      }
-      debouncingChatlistItemRequests[chatId] = 1
-      // the message id of the event could be an older message than the newest message (for example msg-read event)
-      const chatlist = await BackendRemote.rpc.getChatlistEntries(
-        accountId,
-        listFlags,
-        null,
-        null
-      )
-      const result = chatlist.find(chat => chat === chatId)
-      if (result) {
-        setChatLoading(state => ({
-          ...state,
-          [chatId]: LoadStatus.FETCHING,
-        }))
-        const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
-          accountId,
-          [result]
-        )
-        setChatCache(cache => ({ ...cache, ...chats }))
-        setChatLoading(state => ({
-          ...state,
-          [chatId]: LoadStatus.LOADED,
-        }))
-      }
-
-      if (debouncingChatlistItemRequests[chatId] > 1) {
-        updateChatListItem(chatId)
-      } else {
-        debouncingChatlistItemRequests[chatId] = 0
-      }
-    }
-
-    return ({
-      chatId,
-    }: Extract<
-      DcEvent,
-      {
-        type:
-          | 'MsgRead'
-          | 'MsgDelivered'
-          | 'MsgFailed'
-          | 'IncomingMsg'
-          | 'ChatModified'
-          | 'MsgsChanged'
-          | 'MsgsNoticed'
-      }
-    >) => {
-      if (chatId === C.DC_CHAT_ID_TRASH) {
-        return
-      }
-      if (chatId !== 0) {
-        if (
-          debouncingChatlistItemRequests[chatId] === undefined ||
-          debouncingChatlistItemRequests[chatId] === 0
-        ) {
-          updateChatListItem(chatId)
-        } else {
-          debouncingChatlistItemRequests[chatId] =
-            debouncingChatlistItemRequests[chatId] + 1
+  useEffect(
+    () =>
+      onDCEvent(accountId, 'UIChatListItemChanged', async ({ chatId }) => {
+        if (chatId === C.DC_CHAT_ID_TRASH) {
+          return
         }
-      }
-    }
-  }, [accountId, listFlags])
-
-  /**
-   * refresh chats a specific contact is in if that contact changed.
-   * Currently used for updating nickname changes in the summary of chatlistitems.
-   */
-  const onContactChanged = useCallback(
-    async ({ contactId }: DcEventType<'ContactsChanged'>) => {
-      if (contactId !== 0) {
-        const chatListItems = await BackendRemote.rpc.getChatlistEntries(
-          accountId,
-          null,
-          null,
-          contactId
-        )
-        const inCurrentCache = Object.keys(chatCacheRef.current).map(v =>
-          Number(v)
-        )
-        const toBeRefreshed = chatListItems.filter(
-          chatId => inCurrentCache.indexOf(chatId) !== -1
-        )
-        const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
-          accountId,
-          toBeRefreshed
-        )
-        setChatCache(cache => ({ ...cache, ...chats }))
-      }
-    },
+        if (chatId !== null) {
+          setChatLoading(state => ({
+            ...state,
+            [chatId]: LoadStatus.FETCHING,
+          }))
+          const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
+            accountId,
+            [chatId]
+          )
+          setChatCache(cache => ({ ...cache, ...chats }))
+          setChatLoading(state => ({
+            ...state,
+            [chatId]: LoadStatus.LOADED,
+          }))
+        } else {
+          // invalidate whole chatlist cache and reload everyhting that was visible before
+          let cached_items = Object.keys(chatCacheRef.current || {}).map(Number)
+          let possibly_visible = cached_items.filter(
+            chatId => chatListIdsRef.current.indexOf(chatId) !== -1
+          )
+          setChatCache({})
+          let new_loading: { [id: number]: LoadStatus | undefined } = {}
+          possibly_visible.forEach(
+            chatId => (new_loading[chatId] = LoadStatus.FETCHING)
+          )
+          setChatLoading(new_loading)
+          const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
+            accountId,
+            possibly_visible
+          )
+          setChatCache(cache => ({ ...cache, ...chats }))
+          let new_done: { [id: number]: LoadStatus | undefined } = {}
+          possibly_visible.forEach(
+            chatId => (new_done[chatId] = LoadStatus.LOADED)
+          )
+          setChatLoading(state => ({
+            ...state,
+            ...new_done,
+          }))
+        }
+      }),
     [accountId]
   )
-
-  useEffect(() => onDCEvent(accountId, 'ContactsChanged', onContactChanged), [
-    accountId,
-    onContactChanged,
-  ])
-
-  useEffect(() => {
-    const emitter = BackendRemote.getContextEvents(accountId)
-
-    emitter.on('MsgRead', onChatListItemChanged)
-    emitter.on('MsgDelivered', onChatListItemChanged)
-    emitter.on('MsgFailed', onChatListItemChanged)
-    emitter.on('IncomingMsg', onChatListItemChanged)
-    emitter.on('ChatModified', onChatListItemChanged)
-    emitter.on('MsgsChanged', onChatListItemChanged)
-    emitter.on('MsgsNoticed', onChatListItemChanged)
-
-    return () => {
-      emitter.off('MsgRead', onChatListItemChanged)
-      emitter.off('MsgDelivered', onChatListItemChanged)
-      emitter.off('MsgFailed', onChatListItemChanged)
-      emitter.off('IncomingMsg', onChatListItemChanged)
-      emitter.off('ChatModified', onChatListItemChanged)
-      emitter.off('MsgsChanged', onChatListItemChanged)
-      emitter.off('MsgsNoticed', onChatListItemChanged)
-    }
-  }, [onChatListItemChanged, accountId])
 
   // effects
 
@@ -649,10 +564,9 @@ function useLogicChatPart(
   queryStr: string | undefined,
   showArchivedChats: boolean
 ) {
-  const { chatListIds, setQueryStr, setListFlags, listFlags } = useChatList()
+  const { chatListIds, setQueryStr, setListFlags } = useChatList()
   const { isChatLoaded, loadChats, chatCache } = useLogicVirtualChatList(
-    chatListIds,
-    listFlags
+    chatListIds
   )
 
   // effects

@@ -126,8 +126,7 @@ export function ViewProfileInner({
   const accountId = selectedAccountId()
   const { chatListIds } = useChatList(null, '', contact.id)
   const { isChatLoaded, loadChats, chatCache } = useLogicVirtualChatList(
-    chatListIds,
-    null
+    chatListIds
   )
   const [selfChatAvatar, setSelfChatAvatar] = useState<string | null>(null)
   const isDeviceChat = contact.id === C.DC_CONTACT_ID_DEVICE
