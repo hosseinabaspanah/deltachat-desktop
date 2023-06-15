@@ -500,26 +500,53 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
     })
   }
 
-  useEffect(
-    () =>
-      onDCEvent(accountId, 'UIChatListItemChanged', async ({ chatId }) => {
+  useEffect(() => {
+    let debouncingChatlistItemRequests: { [chatid: number]: number } = {}
+    let cleanup_timeout = setInterval(() => {
+      // clean up debouncingChatlistItemRequests every half minute,
+      // so if there should ever be an error it auto recovers
+      debouncingChatlistItemRequests = {}
+    }, 30000)
+
+    const updateChatListItem = async (chatId: number) => {
+      debouncingChatlistItemRequests[chatId] = 1
+      setChatLoading(state => ({
+        ...state,
+        [chatId]: LoadStatus.FETCHING,
+      }))
+      const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
+        accountId,
+        [chatId]
+      )
+      setChatCache(cache => ({ ...cache, ...chats }))
+      setChatLoading(state => ({
+        ...state,
+        [chatId]: LoadStatus.LOADED,
+      }))
+      if (debouncingChatlistItemRequests[chatId] > 1) {
+        updateChatListItem(chatId)
+      } else {
+        debouncingChatlistItemRequests[chatId] = 0
+      }
+    }
+
+    const removeListener = onDCEvent(
+      accountId,
+      'UIChatListItemChanged',
+      async ({ chatId }) => {
         if (chatId === C.DC_CHAT_ID_TRASH) {
           return
         }
         if (chatId !== null) {
-          setChatLoading(state => ({
-            ...state,
-            [chatId]: LoadStatus.FETCHING,
-          }))
-          const chats = await BackendRemote.rpc.getChatlistItemsByEntries(
-            accountId,
-            [chatId]
-          )
-          setChatCache(cache => ({ ...cache, ...chats }))
-          setChatLoading(state => ({
-            ...state,
-            [chatId]: LoadStatus.LOADED,
-          }))
+          if (
+            debouncingChatlistItemRequests[chatId] === undefined ||
+            debouncingChatlistItemRequests[chatId] === 0
+          ) {
+            updateChatListItem(chatId)
+          } else {
+            debouncingChatlistItemRequests[chatId] =
+              debouncingChatlistItemRequests[chatId] + 1
+          }
         } else {
           // invalidate whole chatlist cache and reload everyhting that was visible before
           let cached_items = Object.keys(chatCacheRef.current || {}).map(Number)
@@ -545,10 +572,16 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
             ...state,
             ...new_done,
           }))
+          // reset debouncing
+          debouncingChatlistItemRequests = {}
         }
-      }),
-    [accountId]
-  )
+      }
+    )
+    return () => {
+      removeListener()
+      clearInterval(cleanup_timeout)
+    }
+  }, [accountId])
 
   // effects
 
