@@ -35,7 +35,7 @@ import {
 import { useThemeCssVar } from '../../ThemeManager'
 import { BackendRemote, onDCEvent, Type } from '../../backend-com'
 import { selectedAccountId } from '../../ScreenController'
-import { DcEvent, DcEventType, T } from '@deltachat/jsonrpc-client'
+import { T } from '@deltachat/jsonrpc-client'
 import { Avatar } from '../Avatar'
 
 const enum LoadStatus {
@@ -502,7 +502,7 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
 
   useEffect(() => {
     let debouncingChatlistItemRequests: { [chatid: number]: number } = {}
-    let cleanup_timeout = setInterval(() => {
+    const cleanup_timeout = setInterval(() => {
       // clean up debouncingChatlistItemRequests every half minute,
       // so if there should ever be an error it auto recovers
       debouncingChatlistItemRequests = {}
@@ -549,12 +549,12 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
           }
         } else {
           // invalidate whole chatlist cache and reload everyhting that was visible before
-          let cached_items = Object.keys(chatCacheRef.current || {}).map(Number)
-          let possibly_visible = cached_items.filter(
+          const cached_items = Object.keys(chatCacheRef.current || {}).map(Number)
+          const possibly_visible = cached_items.filter(
             chatId => chatListIdsRef.current.indexOf(chatId) !== -1
           )
           setChatCache({})
-          let new_loading: { [id: number]: LoadStatus | undefined } = {}
+          const new_loading: { [id: number]: LoadStatus | undefined } = {}
           possibly_visible.forEach(
             chatId => (new_loading[chatId] = LoadStatus.FETCHING)
           )
@@ -564,7 +564,7 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
             possibly_visible
           )
           setChatCache(cache => ({ ...cache, ...chats }))
-          let new_done: { [id: number]: LoadStatus | undefined } = {}
+          const new_done: { [id: number]: LoadStatus | undefined } = {}
           possibly_visible.forEach(
             chatId => (new_done[chatId] = LoadStatus.LOADED)
           )
