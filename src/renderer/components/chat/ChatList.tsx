@@ -549,7 +549,9 @@ export function useLogicVirtualChatList(chatListIds: number[]) {
           }
         } else {
           // invalidate whole chatlist cache and reload everyhting that was visible before
-          const cached_items = Object.keys(chatCacheRef.current || {}).map(Number)
+          const cached_items = Object.keys(chatCacheRef.current || {}).map(
+            Number
+          )
           const possibly_visible = cached_items.filter(
             chatId => chatListIdsRef.current.indexOf(chatId) !== -1
           )
