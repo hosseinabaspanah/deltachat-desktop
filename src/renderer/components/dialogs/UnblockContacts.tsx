@@ -41,7 +41,7 @@ export default function UnblockContacts(props: {
       message: tx('ask_unblock_contact'),
       confirmLabel: tx('menu_unblock_contact'),
       cb: (yes: boolean) =>
-        yes && EffectfulBackendActions.unBlockContact(accountId, id),
+        yes && BackendRemote.rpc.unblockContact(accountId, id),
     })
   }
 

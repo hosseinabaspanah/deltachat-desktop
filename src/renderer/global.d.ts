@@ -34,7 +34,6 @@ declare global {
       | ((searchTerm: string, chatId: number | null) => void)
       | undefined
     __chatStore: any
-    __refetchChatlist: undefined | (() => void)
     __welcome_qr: undefined | string
     __askForName: boolean
     __internal_jump_to_message:
